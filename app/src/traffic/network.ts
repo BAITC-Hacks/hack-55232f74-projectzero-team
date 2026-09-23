@@ -35,34 +35,108 @@ export function districtAt(x: number, z: number): DistrictId {
   if (lon > 71.45) return 'almaty'
   return lon < 71.418 ? 'nura' : 'esil'
 }
-export const junctions: Junction[] = geography.nodes.map((node, index) => ({
-  id: node.id,
-  x: node.point[0],
-  z: node.point[1],
-  district: districtAt(...(node.point as Point)),
-  index,
-}))
+// Grade-separated interchanges whose short OSM ramps overlap at game road width.
+// Each becomes one at-grade junction; approaches keep their OSM geometry outside the radius.
+export const interchanges = [
+  {
+    id: 'mangilik-el-arkhar',
+    name: 'Мангилик Ел × мост Архар',
+    lat: 51.13219,
+    lon: 71.44106,
+    radius: 30,
+  },
+].map((site) => {
+  const [x, z] = project(site.lat, site.lon)
+  return { ...site, x, z }
+})
+type Hub = { id: string; point: Point; radius: number }
+const hubOf = new Map<string, Hub>()
+for (const site of interchanges) {
+  const members = geography.nodes.filter(
+    (n) => Math.hypot(n.point[0] - site.x, n.point[1] - site.z) < site.radius,
+  )
+  if (!members.length) continue
+  const hub = {
+    id: members[0].id,
+    point: [0, 1].map(
+      (axis) => members.reduce((sum, n) => sum + n.point[axis], 0) / members.length,
+    ) as Point,
+    radius: site.radius,
+  }
+  members.forEach((n) => hubOf.set(n.id, hub))
+}
+const rawRoads: {
+  id: string
+  a: string
+  b: string
+  points: Point[]
+  road: (typeof geography.roads)[number]
+  bridge: boolean
+}[] = []
+const rawByPair = new Map<string, number>()
+const polylineLength = (points: Point[]) =>
+  points
+    .slice(1)
+    .reduce((sum, p, i) => sum + Math.hypot(p[0] - points[i][0], p[1] - points[i][1]), 0)
+for (const road of geography.roads) {
+  const hubA = hubOf.get(road.a),
+    hubB = hubOf.get(road.b),
+    a = hubA?.id ?? road.a,
+    b = hubB?.id ?? road.b
+  if (a === b) continue
+  let points = road.points as Point[]
+  if (hubA || hubB) {
+    // Spokes run straight from the hub to where the OSM road leaves the interchange.
+    let start = 1,
+      end = points.length - 1
+    const inside = (p: Point, hub?: Hub) =>
+      !!hub && Math.hypot(p[0] - hub.point[0], p[1] - hub.point[1]) < hub.radius
+    while (start < end && inside(points[start], hubA)) start++
+    while (end > start && inside(points[end - 1], hubB)) end--
+    points = [hubA?.point ?? points[0], ...points.slice(start, end), hubB?.point ?? points.at(-1)!]
+  }
+  const key = [a, b].sort().join(':'),
+    prior = rawByPair.get(key)
+  const entry = { id: road.id, a, b, points, road, bridge: road.bridge }
+  if (prior === undefined) {
+    rawByPair.set(key, rawRoads.length)
+    rawRoads.push(entry)
+  } else if (polylineLength(points) < polylineLength(rawRoads[prior].points)) {
+    rawRoads[prior] = { ...entry, bridge: entry.bridge || rawRoads[prior].bridge }
+  }
+}
+export const junctions: Junction[] = geography.nodes.flatMap((node, index) => {
+  const hub = hubOf.get(node.id)
+  if (hub && hub.id !== node.id) return []
+  const [x, z] = hub?.point ?? (node.point as Point)
+  return [{ id: node.id, x, z, district: districtAt(x, z), index }]
+})
 export const nodeById = new Map(junctions.map((n) => [n.id, n]))
-export const roads: Road[] = geography.roads.map((road) => {
-  const points = road.points as Point[],
-    cumulative = [0]
+export const roads: Road[] = rawRoads.map(({ id, a, b, points, road, bridge }) => {
+  const cumulative = [0]
   for (let i = 1; i < points.length; i++)
     cumulative.push(
       cumulative[i - 1] +
         Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]),
     )
   return {
-    id: road.id,
-    a: nodeById.get(road.a)!,
-    b: nodeById.get(road.b)!,
+    id,
+    a: nodeById.get(a)!,
+    b: nodeById.get(b)!,
     name: road.name,
     arterial: road.arterial,
-    bridge: road.bridge,
+    bridge,
     points,
     cumulative,
     length: cumulative.at(-1)!,
   }
 })
+const degree = new Map<string, number>()
+for (const road of roads)
+  for (const id of [road.a.id, road.b.id]) degree.set(id, (degree.get(id) ?? 0) + 1)
+// Only real crossings (three or more roads) carry traffic lights; bends and dead ends flow freely.
+export const isSignalized = (node: Junction) => (degree.get(node.id) ?? 0) >= 3
+export const roadWidth = (road: Road) => (road.arterial ? 9 : 7.8)
 export const edges: Edge[] = roads.flatMap((road) => [
   { id: `${road.a.id}>${road.b.id}`, road, from: road.a, to: road.b, length: road.length },
   { id: `${road.b.id}>${road.a.id}`, road, from: road.b, to: road.a, length: road.length },
@@ -224,9 +298,9 @@ export function pointOnRoad(road: Road, position: number, offset = 0) {
     angle: Math.atan2(dx, dz),
   }
 }
-export function pointOnEdge(edge: Edge, position: number, busLane = false) {
+export function pointOnEdge(edge: Edge, position: number, busLane = false, lateral?: number) {
   const forward = edge.from.id === edge.road.a.id,
-    lane = busLane ? 3.2 : 1.4
+    lane = lateral ?? (busLane ? 3.2 : 1.4)
   const point = pointOnRoad(
     edge.road,
     forward ? position : edge.length - position,

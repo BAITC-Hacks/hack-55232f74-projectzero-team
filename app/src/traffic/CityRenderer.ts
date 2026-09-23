@@ -1,7 +1,16 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { Config, Decision } from '../types'
-import { districtAreas, districtAt, edges, pointOnEdge, pointOnRoad, roads } from './network'
+import {
+  districtAreas,
+  districtAt,
+  edges,
+  isSignalized,
+  pointOnEdge,
+  pointOnRoad,
+  roadWidth,
+  roads,
+} from './network'
 import type { DistrictId } from './network'
 import type { TrafficEngine, TrafficSnapshot } from './engine'
 import { cityBounds, landmarks } from './geography'
@@ -9,9 +18,14 @@ import { buildBlocks, buildTerrain, makeFacade, merge, ribbon } from './cityScen
 import { buildLandmark } from './landmarks'
 
 export type CityLayer = 'city' | 'traffic' | 'transit' | 'districts'
-const dummy = new THREE.Object3D(),
-  green = new THREE.Color('#8cdfab'),
-  red = new THREE.Color('#e4775c')
+const dummy = new THREE.Object3D()
+// Lit and dimmed lamp colours for the red, amber and green sections of each signal head.
+const lamps = [
+  ['#ff4b3a', '#3d1f1c'],
+  ['#ffc23a', '#3b321c'],
+  ['#44f08f', '#1b3526'],
+].map((pair) => pair.map((c) => new THREE.Color(c)))
+const lampState = { red: 0, amber: 1, green: 2 } as const
 const roadColor = (n: number) => (n > 0.65 ? '#f07354' : n > 0.35 ? '#edc35a' : '#63cba0')
 type SurfaceRange = { id: string; start: number; count: number }
 
@@ -27,8 +41,9 @@ export class CityRenderer {
   private ranges: SurfaceRange[] = []
   private laneMeshes: { mesh: THREE.Mesh; district: DistrictId }[] = []
   private routeMesh: THREE.Mesh | null = null
-  private signalLights!: THREE.InstancedMesh
-  private signalEdges = edges.filter((edge) => edge.length > 14)
+  private signalLamps: THREE.InstancedMesh[] = []
+  // One signal per approach to a real crossing, skipping stubs too short to hold a pole.
+  private signalEdges = edges.filter((edge) => isSignalized(edge.to) && edge.length > 8)
   private stopMeshes: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>[] = []
   private projectGroup = new THREE.Group()
   private cars: THREE.InstancedMesh
@@ -237,28 +252,52 @@ export class CityRenderer {
       markings.setMatrixAt(i, dummy.matrix)
     })
     this.scene.add(markings)
-    const poles = new THREE.InstancedMesh(
-      new THREE.CylinderGeometry(0.17, 0.22, 3.1, 4),
-      this.material('#4d5951'),
-      this.signalEdges.length,
-    )
-    this.signalLights = new THREE.InstancedMesh(
-      new THREE.SphereGeometry(0.45, 6, 4),
-      new THREE.MeshBasicMaterial(),
-      this.signalEdges.length,
+    const count = this.signalEdges.length,
+      dark = this.material('#2f3834')
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.16, 0.2, 1, 6), dark, count),
+      arms = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.16, 0.16), dark, count),
+      heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.85, 2.3, 0.5), dark, count)
+    this.signalLamps = lamps.map(
+      () =>
+        new THREE.InstancedMesh(
+          new THREE.CircleGeometry(0.3, 10),
+          new THREE.MeshBasicMaterial({ toneMapped: false }),
+          count,
+        ),
     )
     this.signalEdges.forEach((edge, i) => {
-      const p = pointOnEdge(edge, edge.length - 3, true)
+      // Pole on the right kerb before the crossing; mast arm holds the head over the lanes.
+      const width = roadWidth(edge.road),
+        at = Math.max(edge.length * 0.5, edge.length - width / 2 - 2),
+        kerb = pointOnEdge(edge, at, false, width / 2 + 0.7),
+        lane = pointOnEdge(edge, at, false, width / 4),
+        top = kerb.y + 5.4
       dummy.rotation.set(0, 0, 0)
-      dummy.scale.set(1, 1, 1)
-      dummy.position.set(p.x, p.y + 1.55, p.z)
+      dummy.position.set(kerb.x, kerb.y + 2.7, kerb.z)
+      dummy.scale.set(1, 5.4, 1)
       dummy.updateMatrix()
       poles.setMatrixAt(i, dummy.matrix)
-      dummy.position.y = p.y + 3.35
+      dummy.position.set((kerb.x + lane.x) / 2, top, (kerb.z + lane.z) / 2)
+      dummy.rotation.set(0, kerb.angle, 0)
+      dummy.scale.set(Math.hypot(kerb.x - lane.x, kerb.z - lane.z) + 0.2, 1, 1)
       dummy.updateMatrix()
-      this.signalLights.setMatrixAt(i, dummy.matrix)
+      arms.setMatrixAt(i, dummy.matrix)
+      dummy.position.set(lane.x, top - 1.1, lane.z)
+      dummy.rotation.set(0, kerb.angle + Math.PI, 0)
+      dummy.scale.set(1, 1, 1)
+      dummy.updateMatrix()
+      heads.setMatrixAt(i, dummy.matrix)
+      this.signalLamps.forEach((mesh, section) => {
+        dummy.position.set(lane.x, top - 1.1, lane.z)
+        dummy.rotation.set(0, kerb.angle + Math.PI, 0)
+        dummy.translateZ(0.26)
+        dummy.translateY(0.72 - section * 0.72)
+        dummy.updateMatrix()
+        mesh.setMatrixAt(i, dummy.matrix)
+        mesh.setColorAt(i, lamps[section][1])
+      })
     })
-    this.scene.add(poles, this.signalLights)
+    this.scene.add(poles, arms, heads, ...this.signalLamps)
   }
   setOptions(layer: CityLayer, selected: string, night: boolean, selectedRoad: string | null) {
     this.layer = layer
@@ -385,10 +424,14 @@ export class CityRenderer {
     this.lastFrame = frame
     this.lastEngine = engine
     this.updateProjects(decisions, engine)
-    this.signalEdges.forEach((edge, i) =>
-      this.signalLights.setColorAt(i, engine.isGreen(edge) ? green : red),
-    )
-    if (this.signalLights.instanceColor) this.signalLights.instanceColor.needsUpdate = true
+    this.signalEdges.forEach((edge, i) => {
+      const lit = lampState[engine.signalState(edge)]
+      this.signalLamps.forEach((mesh, section) =>
+        mesh.setColorAt(i, lamps[section][section === lit ? 0 : 1]),
+      )
+    })
+    for (const mesh of this.signalLamps)
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
     const roadStyle = `${this.layer}:${this.selectedRoad}`
     if (snapshot !== this.lastRoadSnapshot || roadStyle !== this.lastRoadStyle) {
       const readings = new Map(snapshot.roads.map((r) => [r.id, r])),
