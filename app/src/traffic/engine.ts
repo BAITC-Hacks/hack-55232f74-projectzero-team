@@ -5,6 +5,7 @@ import {
   edgesForNodes,
   tripNodes,
   pointOnEdge,
+  isSignalized,
   nodeById,
   roads,
   shortestPath,
@@ -215,13 +216,21 @@ export class TrafficEngine {
   }
 
   isGreen(edge: Edge) {
+    return this.signalState(edge) !== 'red'
+  }
+
+  signalState(edge: Edge): 'green' | 'amber' | 'red' {
+    if (!isSignalized(edge.to)) return 'green'
     const cycle = this.smartSignals ? 30 : 46
     const phase = (this.elapsed + edge.to.index * 7) % cycle
     const tangent = pointOnEdge(edge, edge.length)
     const vertical = Math.abs(Math.cos(tangent.angle)) >= Math.abs(Math.sin(tangent.angle))
-    return vertical
-      ? phase < (this.smartSignals ? 14 : 18)
-      : phase >= (this.smartSignals ? 15 : 23) && phase < (this.smartSignals ? 29 : 41)
+    const [start, end] = vertical
+      ? [0, this.smartSignals ? 14 : 18]
+      : this.smartSignals
+        ? [15, 29]
+        : [23, 41]
+    return phase < start || phase >= end ? 'red' : phase >= end - 3 ? 'amber' : 'green'
   }
 
   private pickNode(weighted = false): Junction {

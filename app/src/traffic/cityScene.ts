@@ -237,7 +237,7 @@ export function buildBlocks(facade: THREE.MeshStandardMaterial) {
       z < cityBounds.minZ ||
       z > cityBounds.maxZ ||
       reserved(x, z, r) ||
-      nearRoad(x, z, r + 4)
+      nearRoad(x, z, r + 6.4)
     )
       return false
     const gx = Math.floor(x / 25),
