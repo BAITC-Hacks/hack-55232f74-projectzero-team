@@ -165,7 +165,7 @@ function Simulator({ config }: { config: Config }) {
       <header className={`header ${view === 'city' ? 'game-header' : ''}`}>
         <a className="brand" href="/" aria-label="Аким на 5 часов — главная">
           <span className="brand-symbol">
-            <Building2 size={25} />
+            <img src="/logo.png" alt="" />
           </span>
           <span>
             Аким <em>на 5 часов</em>

@@ -119,11 +119,13 @@ select {
 .brand-symbol {
   display: grid;
   place-items: center;
-  background: #204a3b;
-  color: #daf58c;
   width: 45px;
   height: 45px;
-  border-radius: 13px;
+}
+.brand-symbol img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 .header nav {
   display: flex;
