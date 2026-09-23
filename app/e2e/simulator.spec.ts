@@ -5,6 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**://tile.openstreetmap.org/**', (route) => route.abort())
   await page.route('**://fonts.googleapis.com/**', (route) => route.abort())
   await page.goto('/')
+  await page.getByRole('button', { name: 'Аналитика и карта', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Большие перемены. Пять решений.' })).toBeVisible()
 })
 

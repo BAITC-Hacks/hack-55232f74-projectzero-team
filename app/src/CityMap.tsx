@@ -7,7 +7,8 @@ function Focus({ district, config }: { district: string; config: Config }) {
   const map = useMap()
   useEffect(() => {
     const center = config.districts.find((d) => d.id === district)?.center
-    if (center) map.panTo(center, { animate: true, duration: 0.6 })
+    // Keep the city overview; move only when the selected marker is off-screen.
+    if (center) map.panInside(center, { padding: [65, 60], animate: true })
   }, [district, config, map])
   return null
 }

@@ -3,6 +3,8 @@ WORKDIR /app
 COPY app/package.json app/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY app ./
+# Shared fixture for traffic tests and their TypeScript checks.
+COPY data /data
 EXPOSE 8080
 CMD ["npm", "run", "dev"]
 

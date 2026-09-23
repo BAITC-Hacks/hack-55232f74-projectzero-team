@@ -18,3 +18,4 @@ services:
       - ./app/public:/app/public:ro
       - ./app/index.html:/app/index.html:ro
       - ./app/vite.config.ts:/app/vite.config.ts:ro
+      - ./data:/data:ro
