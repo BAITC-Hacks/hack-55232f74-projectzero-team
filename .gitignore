@@ -33,3 +33,9 @@ data/raw/
 .vscode/
 *.log
 tmp/
+
+# Test artifacts
+.pytest_cache/
+app/test-results/
+app/playwright-report/
+*.tsbuildinfo

@@ -1,0 +1,44 @@
+name: projectzero
+services:
+  api:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: runtime
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_JSON_MODE: ${LLM_JSON_MODE:-true}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+  web:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+      target: runtime
+    ports:
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    restart: unless-stopped
+  test:
+    profiles: [test]
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: development
+    command: ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"]

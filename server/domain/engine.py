@@ -8,7 +8,7 @@ import json
 
 @lru_cache
 def load_dataset() -> dict:
-    return json.loads((Path(__file__).resolve().parents[2] / "data/scenario.json").read_text())
+    return json.loads((Path(__file__).resolve().parents[2] / "data/scenario.json").read_text(encoding="utf-8"))
 
 
 def validate(decisions: list[dict], data: dict) -> list[str]:

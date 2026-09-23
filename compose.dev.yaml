@@ -1,0 +1,20 @@
+# Merge with compose.yaml: docker compose -f compose.yaml -f compose.dev.yaml up --build
+services:
+  api:
+    build:
+      target: development
+    command: ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "server", "--reload-dir", "data", "--reload-include", "*.json"]
+    volumes:
+      - ./server:/project/server:ro
+      - ./data:/project/data:ro
+      - ./tests:/project/tests:ro
+  web:
+    build:
+      target: development
+    environment:
+      API_PROXY_TARGET: http://api:8000
+    volumes:
+      - ./app/src:/app/src:ro
+      - ./app/public:/app/public:ro
+      - ./app/index.html:/app/index.html:ro
+      - ./app/vite.config.ts:/app/vite.config.ts:ro

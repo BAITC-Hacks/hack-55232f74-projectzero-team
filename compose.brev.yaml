@@ -1,0 +1,33 @@
+# Run on a Brev GPU VM with the NVIDIA container runtime installed.
+services:
+  llm:
+    image: vllm/vllm-openai:v0.10.2
+    command:
+      - --model
+      - ${BREV_MODEL:-Qwen/Qwen3-4B-Instruct-2507}
+      - --served-model-name
+      - city-analyst
+      - --max-model-len
+      - "8192"
+      - --gpu-memory-utilization
+      - "0.85"
+      - --max-num-seqs
+      - "4"
+    volumes:
+      - model-cache:/root/.cache/huggingface
+    shm_size: 2gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+  api:
+    environment:
+      LLM_BASE_URL: http://llm:8000/v1
+      LLM_MODEL: city-analyst
+      LLM_API_KEY: ""
+volumes:
+  model-cache:
