@@ -1,0 +1,67 @@
+{
+  "version": "astana-synthetic-v1",
+  "budget": 100,
+  "horizon": 8,
+  "decision_count": 5,
+  "max_per_category": 2,
+  "critical_threshold": 40,
+  "categories": [
+    {"id":"transport","name":"Транспорт","color":"#5184ef"},
+    {"id":"ecology","name":"Озеленение","color":"#38ac80"},
+    {"id":"social","name":"Соцсфера","color":"#a176e8"},
+    {"id":"safety","name":"Безопасность","color":"#edaa42"},
+    {"id":"services","name":"Городской сервис","color":"#44adbd"}
+  ],
+  "metrics": [
+    {"id":"T1","name":"Разгрузка дорог","category":"transport","weight":0.10},
+    {"id":"T2","name":"Доступность транспорта","category":"transport","weight":0.10},
+    {"id":"E1","name":"Озеленение","category":"ecology","weight":0.09},
+    {"id":"E2","name":"Качество воздуха","category":"ecology","weight":0.11},
+    {"id":"S1","name":"Школы и детсады","category":"social","weight":0.11},
+    {"id":"S2","name":"Первичная медпомощь","category":"social","weight":0.11},
+    {"id":"B1","name":"Безопасность улиц","category":"safety","weight":0.09},
+    {"id":"B2","name":"Безопасность на дорогах","category":"safety","weight":0.09},
+    {"id":"C1","name":"Надёжность ЖКХ","category":"services","weight":0.10},
+    {"id":"C2","name":"Решение обращений","category":"services","weight":0.10}
+  ],
+  "districts": [
+    {"id":"esil","name":"Есиль","population_share":0.27,"center":[51.120,71.420],"profile":"Развитый район с пробками на мостах и переполненными школами.","indicators":{"T1":45,"T2":62,"E1":68,"E2":72,"S1":48,"S2":55,"B1":78,"B2":60,"C1":75,"C2":70}},
+    {"id":"almaty","name":"Алматы","population_share":0.24,"center":[51.155,71.480],"profile":"Высокая транспортная нагрузка и изношенные коммунальные сети.","indicators":{"T1":40,"T2":75,"E1":50,"E2":55,"S1":60,"S2":65,"B1":62,"B2":52,"C1":50,"C2":60}},
+    {"id":"saryarka","name":"Сарыарка","population_share":0.20,"center":[51.185,71.397],"profile":"Смог от частного сектора и недостаток зелёных пространств.","indicators":{"T1":50,"T2":70,"E1":42,"E2":40,"S1":62,"S2":68,"B1":58,"B2":55,"C1":45,"C2":55}},
+    {"id":"baikonur","name":"Байконур","population_share":0.13,"center":[51.195,71.452],"profile":"Сбалансированный район: улучшения нужны во всех направлениях.","indicators":{"T1":52,"T2":68,"E1":55,"E2":50,"S1":58,"S2":60,"B1":52,"B2":58,"C1":55,"C2":58}},
+    {"id":"nura","name":"Нура","population_share":0.16,"center":[51.111,71.350],"profile":"Главный дефицит — школы, медицина и доступность транспорта.","indicators":{"T1":55,"T2":40,"E1":45,"E2":65,"S1":38,"S2":35,"B1":55,"B2":50,"C1":60,"C2":50}}
+  ],
+  "measures": [
+    {"id":"M1","category":"transport","name":"Выделенные полосы для автобусов","scope":"district","cost":18,"lag":2,"effects":{"T1":6,"T2":9}},
+    {"id":"M2","category":"transport","name":"Умные светофоры","scope":"city","cost":22,"lag":2,"effects":{"T1":4,"B2":3}},
+    {"id":"M3","category":"transport","name":"Линия ЛРТ / расширение","scope":"district","cost":30,"lag":4,"effects":{"T1":16,"T2":20,"E2":4}},
+    {"id":"M4","category":"ecology","name":"Парк / сквер","scope":"district","cost":15,"lag":2,"effects":{"E1":12,"E2":3,"B1":2}},
+    {"id":"M5","category":"ecology","name":"Перевод частного сектора на чистое топливо","scope":"district","cost":25,"lag":3,"effects":{"E2":14,"C1":4}},
+    {"id":"M6","category":"ecology","name":"Озеленение и ветрозащитные полосы","scope":"city","cost":20,"lag":4,"effects":{"E1":5,"E2":3}},
+    {"id":"M7","category":"social","name":"Школа + детсад","scope":"district","cost":24,"lag":3,"effects":{"S1":16}},
+    {"id":"M8","category":"social","name":"Центр семейного здоровья","scope":"district","cost":20,"lag":3,"effects":{"S2":14}},
+    {"id":"M9","category":"social","name":"Дворовые спорт-хабы","scope":"district","cost":10,"lag":1,"effects":{"S1":3,"S2":3,"B1":3}},
+    {"id":"M10","category":"safety","name":"Освещение и камеры Safe City","scope":"district","cost":12,"lag":1,"effects":{"B1":12,"B2":2}},
+    {"id":"M11","category":"safety","name":"Безопасные переходы и школьные зоны","scope":"district","cost":10,"lag":1,"effects":{"B2":12,"T1":-2}},
+    {"id":"M12","category":"services","name":"Цифровая платформа обращений","scope":"city","cost":14,"lag":1,"effects":{"C2":5}},
+    {"id":"M13","category":"services","name":"Модернизация тепло- и водосетей","scope":"district","cost":28,"lag":4,"effects":{"C1":18,"E2":2}},
+    {"id":"M14","category":"services","name":"Аварийные бригады ЖКХ","scope":"city","cost":16,"lag":1,"effects":{"C1":5,"C2":2}}
+  ],
+  "synergies": [
+    {"pair":["M1","M2"],"effects":{"T1":2}},
+    {"pair":["M10","M12"],"effects":{"B1":2}},
+    {"pair":["M5","M6"],"effects":{"E2":2}}
+  ],
+  "incompatibilities": [
+    {"pair":["M1","M3"],"scope":"city","reason":"Выберите автобусные полосы или ЛРТ: программы несовместимы во всём городе."},
+    {"pair":["M4","M7"],"scope":"district","reason":"Парк и школа конфликтуют за участок в одном районе."},
+    {"pair":["M5","M13"],"scope":"district","reason":"Чистое топливо и модернизация сетей дублируют программу в одном районе."}
+  ],
+  "example": [
+    {"measure_id":"M7","district_id":"nura"},
+    {"measure_id":"M8","district_id":"nura"},
+    {"measure_id":"M10","district_id":"nura"},
+    {"measure_id":"M12","district_id":null},
+    {"measure_id":"M5","district_id":"saryarka"}
+  ]
+}
