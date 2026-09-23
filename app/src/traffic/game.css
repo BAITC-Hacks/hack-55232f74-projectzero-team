@@ -1281,3 +1281,144 @@
     width: calc(100% - 24px);
   }
 }
+.landmark-picker {
+  position: absolute;
+  top: 27px;
+  left: 335px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  background: #eff3e4ef;
+  border: 1px solid #fff8;
+  border-radius: 6px;
+  color: #3b6353;
+  width: 242px;
+  box-shadow: 0 4px 16px #29483515;
+}
+.landmark-picker > span {
+  flex: 1;
+  min-width: 0;
+}
+.landmark-picker small {
+  display: block;
+  font-size: 7px;
+  letter-spacing: 1.2px;
+  margin-bottom: 4px;
+  color: #6c8576;
+}
+.landmark-picker select {
+  width: 100%;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  color: #2f5143;
+  font-size: 11px;
+  cursor: pointer;
+}
+.landmark-picker option {
+  background: #eff3e4;
+  color: #2f5143;
+}
+.world-landmark-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #193d3be8;
+  color: #ecf3df !important;
+  padding: 6px 9px;
+  font-size: 9px !important;
+  border: 1px solid #b9d7ad6b !important;
+  border-radius: 5px;
+  box-shadow: 0 3px 12px #183b2c2b;
+  white-space: nowrap;
+}
+.world-landmark-label::before {
+  content: '';
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  background: #e5c675;
+  transform: rotate(45deg);
+}
+.osm-credit {
+  position: absolute;
+  right: 18px;
+  bottom: 9px;
+  color: #345642;
+  background: #eff3e1de;
+  padding: 3px 6px;
+  border-radius: 3px;
+  font-size: 8px;
+  z-index: 2;
+}
+.osm-credit:hover {
+  text-decoration: underline;
+}
+.city-game .simulation-disclaimer {
+  left: 210px;
+  right: 230px;
+  font-size: 7px;
+}
+@media (max-width: 1100px) {
+  .landmark-picker {
+    left: 320px;
+    width: 185px;
+  }
+  .landmark-picker select {
+    font-size: 10px;
+  }
+  .city-game .simulation-disclaimer {
+    left: 15px;
+    text-align: left;
+    max-width: 60%;
+  }
+}
+@media (max-width: 760px) {
+  .landmark-picker {
+    top: 15px;
+    left: auto;
+    right: 12px;
+    width: 139px;
+    padding: 9px 8px;
+    gap: 5px;
+  }
+  .landmark-picker > svg:first-child {
+    display: none;
+  }
+  .landmark-picker small {
+    font-size: 6px;
+    letter-spacing: 0.5px;
+  }
+  .landmark-picker select {
+    font-size: 9px;
+  }
+  .city-title {
+    max-width: calc(100% - 149px);
+  }
+  .city-title h1 span {
+    display: none;
+  }
+  .city-title p {
+    font-size: 7px;
+    line-height: 1.4;
+  }
+  .world-landmark-label {
+    font-size: 7px !important;
+    padding: 5px 6px;
+  }
+  .osm-credit {
+    right: 12px;
+    bottom: 7px;
+    font-size: 6px;
+  }
+  .city-game .simulation-disclaimer {
+    left: 12px;
+    right: 165px;
+    max-width: none;
+    font-size: 5px;
+    line-height: 1.3;
+    bottom: 7px;
+  }
+}

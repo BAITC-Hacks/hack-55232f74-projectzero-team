@@ -3,7 +3,8 @@ import {
   busLines,
   districtAt,
   edgesForNodes,
-  junctions,
+  tripNodes,
+  pointOnEdge,
   nodeById,
   roads,
   shortestPath,
@@ -124,9 +125,7 @@ export class TrafficEngine {
     }
     const m1 = decisions.find((d) => d.measure_id === 'M1')
     if (m1 && this.smartSignals) this.settings[m1.district_id!].t1 += 2
-    const stopIds = new Set(
-      busLines.flatMap((line) => line.nodes.slice(0, -1).filter((_, i) => i % 2 === 0)),
-    )
+    const stopIds = new Set(busLines.flatMap((line) => line.stops))
     for (const [district, settings] of Object.entries(this.settings)) {
       if (settings.tram)
         tramLoops[district as DistrictId].slice(0, -1).forEach((id) => stopIds.add(id))
@@ -150,13 +149,20 @@ export class TrafficEngine {
       const extra = line.nodes.some((id) => this.settings[nodeById.get(id)!.district].busLane)
         ? 1
         : 0
-      for (let i = 0; i < 3 + extra; i++) this.addTransit(path, 'bus', line.id, i * 3)
+      for (let i = 0; i < 3 + extra; i++)
+        this.addTransit(path, 'bus', line.id, Math.floor((i * path.length) / (3 + extra)))
     }
     for (const [district, settings] of Object.entries(this.settings)) {
       if (settings.tram) {
         const path = edgesForNodes(tramLoops[district as DistrictId])
         for (let i = 0; i < 2; i++)
-          this.addTransit(path, 'tram', 'LRT', i * 3, district as DistrictId)
+          this.addTransit(
+            path,
+            'tram',
+            'LRT',
+            Math.floor((i * path.length) / 2),
+            district as DistrictId,
+          )
       }
     }
     for (let i = 0; i < Math.round(warmup / STEP); i++) this.tick()
@@ -169,12 +175,16 @@ export class TrafficEngine {
     segment: number,
     district?: DistrictId,
   ) {
+    for (let attempt = 0; attempt < path.length; attempt++) {
+      if (!this.vehicles.some((v) => v.path[v.segment].id === path[segment % path.length].id)) break
+      segment++
+    }
     this.vehicles.push({
       id: this.id++,
       kind,
       path,
       segment: segment % path.length,
-      position: 12,
+      position: Math.min(12, path[segment % path.length].length - 1.5),
       speed: 0,
       color:
         kind === 'tram' ? 0xa99ae9 : line === '01' ? 0x30d4c3 : line === '02' ? 0xf3bd56 : 0xa38aef,
@@ -207,7 +217,8 @@ export class TrafficEngine {
   isGreen(edge: Edge) {
     const cycle = this.smartSignals ? 30 : 46
     const phase = (this.elapsed + edge.to.index * 7) % cycle
-    const vertical = edge.from.x === edge.to.x
+    const tangent = pointOnEdge(edge, edge.length)
+    const vertical = Math.abs(Math.cos(tangent.angle)) >= Math.abs(Math.sin(tangent.angle))
     return vertical
       ? phase < (this.smartSignals ? 14 : 18)
       : phase >= (this.smartSignals ? 15 : 23) && phase < (this.smartSignals ? 29 : 41)
@@ -215,7 +226,7 @@ export class TrafficEngine {
 
   private pickNode(weighted = false): Junction {
     if (weighted && this.random() < 0.5) {
-      const candidates = junctions.filter(
+      const candidates = tripNodes.filter(
         (n) => n.district === (this.period === 'evening' ? 'nura' : 'esil'),
       )
       return candidates[Math.floor(this.random() * candidates.length)]
@@ -230,7 +241,7 @@ export class TrafficEngine {
         break
       }
     }
-    const candidates = junctions.filter((n) => n.district === district)
+    const candidates = tripNodes.filter((n) => n.district === district)
     return candidates[Math.floor(this.random() * candidates.length)]
   }
 
@@ -246,7 +257,8 @@ export class TrafficEngine {
       this.carFraction--
       const from = this.pickNode()
       let to = this.pickNode(true)
-      if (to.id === from.id) to = junctions[(from.index + 15) % junctions.length]
+      if (to.id === from.id)
+        to = tripNodes[(tripNodes.findIndex((n) => n.id === from.id) + 15) % tripNodes.length]
       const key = `${from.id}>${to.id}`
       if (!routeCache.has(key)) routeCache.set(key, shortestPath(from.id, to.id))
       this.pendingTrips.push(routeCache.get(key)!)
@@ -392,8 +404,14 @@ export class TrafficEngine {
   snapshot(): TrafficSnapshot {
     const cars = this.vehicles.filter((v) => v.kind === 'car')
     const totalSpeed = cars.reduce((sum, v) => sum + v.speed * 7.2, 0)
+    const byRoad = new Map<string, Vehicle[]>()
+    for (const car of cars) {
+      const id = car.path[car.segment].road.id
+      if (!byRoad.has(id)) byRoad.set(id, [])
+      byRoad.get(id)!.push(car)
+    }
     const readings: RoadReading[] = roads.map((road) => {
-      const onRoad = cars.filter((v) => v.path[v.segment].road.id === road.id)
+      const onRoad = byRoad.get(road.id) || []
       const stopped = onRoad.filter((v) => v.speed < 0.6).length
       const average = onRoad.length
         ? onRoad.reduce((s, v) => s + v.speed * 7.2, 0) / onRoad.length

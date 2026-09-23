@@ -77,6 +77,33 @@ test('mobile game keeps construction and budget reachable', async ({ page }) => 
   await expect(page.getByTestId('city-score')).toHaveText('56,54')
 })
 
+test('Astana landmarks, OSM attribution and camera navigation', async ({ page }) => {
+  await page.getByRole('button', { name: 'Пауза симуляции', exact: true }).click()
+  await expect(
+    page.getByRole('link', { name: '© OpenStreetMap contributors · ODbL' }),
+  ).toHaveAttribute('href', 'https://www.openstreetmap.org/copyright')
+  await expect(page.getByLabel('Ориентир Астаны').locator('option')).toHaveCount(9)
+  await page.getByRole('button', { name: 'Закрыть панель города' }).click()
+  await page.screenshot({ path: 'test-results/astana-centre.png' })
+  await page.getByLabel('Ориентир Астаны').selectOption('khan-shatyr')
+  await expect(
+    page.getByRole('button', { name: 'Приблизить Хан Шатыр', exact: true }),
+  ).toBeVisible()
+  await page.screenshot({ path: 'test-results/astana-khan-shatyr.png' })
+  await page.getByLabel('Ориентир Астаны').selectOption('bayterek')
+  await expect(page.getByRole('button', { name: 'Приблизить Байтерек', exact: true })).toBeVisible()
+  await page.screenshot({ path: 'test-results/astana-bayterek.png' })
+  await page.getByLabel('Ориентир Астаны').selectOption('expo')
+  await expect(
+    page.getByRole('button', { name: 'Приблизить EXPO · Нур Алем', exact: true }),
+  ).toBeVisible()
+  await page.screenshot({ path: 'test-results/astana-expo.png' })
+  await page.getByRole('button', { name: 'Показать весь город', exact: true }).click()
+  await expect(page.getByLabel('Ориентир Астаны')).toHaveValue('overview')
+  await page.screenshot({ path: 'test-results/astana-overview.png' })
+  await expect(page.getByTestId('city-score')).toHaveText('52,56')
+})
+
 test('without WebGL the fallback still simulates and accepts projects', async ({ page }) => {
   await page.addInitScript(() => {
     const getContext = HTMLCanvasElement.prototype.getContext
@@ -91,6 +118,14 @@ test('without WebGL the fallback still simulates and accepts projects', async ({
   })
   await page.reload()
   await expect(page.getByText('Режим совместимости 2D · WebGL недоступен')).toBeVisible()
+  await page.getByLabel('Ориентир Астаны').selectOption('bayterek')
+  await expect(page.getByLabel('Схема транспортных потоков')).toHaveAttribute('viewBox', /280 280$/)
+  await page.getByRole('button', { name: 'Показать весь город', exact: true }).click()
+  await expect(page.getByLabel('Ориентир Астаны')).toHaveValue('overview')
+  await expect(page.getByLabel('Схема транспортных потоков')).not.toHaveAttribute(
+    'viewBox',
+    /280 280$/,
+  )
   await page.getByRole('button', { name: 'Построить M2', exact: true }).click()
   await expect(page.getByTestId('remaining-budget')).toHaveText('78 / 100')
   await expect

@@ -2,21 +2,93 @@ import { describe, expect, it } from 'vitest'
 import scenario from '../../../data/scenario.json'
 import type { Config, Decision } from '../types'
 import { TrafficEngine } from './engine'
-import { busLines, edgesForNodes, junctions, pointOnEdge, shortestPath, tramLoops } from './network'
+import {
+  busLines,
+  districtAreas,
+  edges,
+  edgesForNodes,
+  junctions,
+  nearestNode,
+  outgoing,
+  pointOnEdge,
+  pointOnRoad,
+  roads,
+  shortestPath,
+  tramLoops,
+} from './network'
+import { geography, landmarks, project } from './geography'
 
 const config = scenario as unknown as Config
 const build = (decisions: Decision[] = []) => new TrafficEngine(config, decisions)
 
 describe('deterministic traffic and passenger simulation', () => {
+  it('uses curved OSM centrelines and the mapped Astana landmark axis', () => {
+    expect(geography.license).toBe('ODbL-1.0')
+    expect(roads.length).toBeGreaterThan(500)
+    expect(roads.some((r) => r.name.includes('Кабанбай'))).toBe(true)
+    const curved = roads.find(
+      (r) => r.points.length > 3 && r.length > Math.hypot(r.a.x - r.b.x, r.a.z - r.b.z) + 3,
+    )!
+    expect(curved).toBeDefined()
+    const midpoint = pointOnRoad(curved, curved.cumulative[1])
+    expect(midpoint.x).toBeCloseTo(curved.points[1][0], 6)
+    expect(midpoint.z).toBeCloseTo(curved.points[1][1], 6)
+    for (const road of roads) {
+      expect(road.length).toBeGreaterThan(3)
+      for (let i = 1; i < road.cumulative.length; i++)
+        expect(road.cumulative[i]).toBeGreaterThan(road.cumulative[i - 1])
+    }
+    const khan = landmarks.find((p) => p.id === 'khan-shatyr')!,
+      bayterek = landmarks.find((p) => p.id === 'bayterek')!,
+      akorda = landmarks.find((p) => p.id === 'akorda')!
+    expect(khan.x).toBeLessThan(bayterek.x)
+    expect(bayterek.x).toBeLessThan(akorda.x)
+    expect(project(bayterek.lat, bayterek.lon)).toEqual([bayterek.x, bayterek.z])
+    expect(landmarks.find((p) => p.id === 'expo')!.z).toBeGreaterThan(bayterek.z)
+  })
+
+  it('cached routing matches independent edge relaxation on the imported graph', () => {
+    const origin = junctions[0].id,
+      costs = new Map([[origin, 0]])
+    for (let iteration = 0; iteration < junctions.length; iteration++) {
+      let changed = false
+      for (const edge of edges) {
+        const candidate =
+          (costs.get(edge.from.id) ?? Infinity) + edge.length * (edge.road.arterial ? 0.85 : 1)
+        if (candidate < (costs.get(edge.to.id) ?? Infinity)) {
+          costs.set(edge.to.id, candidate)
+          changed = true
+        }
+      }
+      if (!changed) break
+    }
+    for (const destination of junctions.filter((_, i) => i % 23 === 0)) {
+      const route = shortestPath(origin, destination.id)
+      expect(
+        route.reduce((sum, e) => sum + e.length * (e.road.arterial ? 0.85 : 1), 0),
+      ).toBeCloseTo(costs.get(destination.id)!, 6)
+    }
+  })
   it('connects all junctions and closes every public transport route', () => {
-    for (const origin of junctions)
-      for (const destination of junctions) {
-        if (origin === destination) continue
+    const reached = new Set<string>(),
+      queue = [junctions[0].id]
+    while (queue.length) {
+      const id = queue.pop()!
+      if (reached.has(id)) continue
+      reached.add(id)
+      queue.push(...outgoing.get(id)!.map((e) => e.to.id))
+    }
+    expect(reached.size).toBe(junctions.length)
+    for (const area of districtAreas) {
+      const origin = nearestNode(area.lat, area.lon)
+      for (const destination of junctions.filter((_, i) => i % 19 === 0)) {
+        if (origin.id === destination.id) continue
         const path = shortestPath(origin.id, destination.id)
         expect(path[0].from.id).toBe(origin.id)
         expect(path.at(-1)!.to.id).toBe(destination.id)
         path.slice(1).forEach((edge, i) => expect(path[i].to.id).toBe(edge.from.id))
       }
+    }
     for (const nodes of [...busLines.map((line) => line.nodes), ...Object.values(tramLoops)]) {
       const path = edgesForNodes(nodes)
       expect(path[0].from.id).toBe(path.at(-1)!.to.id)

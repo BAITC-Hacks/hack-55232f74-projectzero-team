@@ -14,7 +14,7 @@ import {
   GraduationCap,
   Layers3,
   Leaf,
-  Map,
+  Map as MapIcon,
   MapPin,
   Minus,
   Moon,
@@ -38,6 +38,7 @@ import type { CityLayer } from './CityRenderer'
 import { TrafficEngine } from './engine'
 import type { Period, TrafficSnapshot } from './engine'
 import { districtAreas, pointOnEdge, roads } from './network'
+import { cityBounds, geography, landmarks } from './geography'
 import './game.css'
 
 const categoryIcons: Record<string, LucideIcon> = {
@@ -50,7 +51,7 @@ const categoryIcons: Record<string, LucideIcon> = {
 const fmt = (value: number, digits = 0) =>
   value.toLocaleString('ru-RU', { maximumFractionDigits: digits })
 const layers: { id: CityLayer; name: string; icon: LucideIcon }[] = [
-  { id: 'city', name: 'Город', icon: Map },
+  { id: 'city', name: 'Город', icon: MapIcon },
   { id: 'traffic', name: 'Трафик', icon: TrafficCone },
   { id: 'transit', name: 'Транспорт', icon: BusFront },
   { id: 'districts', name: 'Районы', icon: Layers3 },
@@ -89,6 +90,7 @@ export default function GameView({
   const [speed, setSpeed] = useState(1)
   const [period, setPeriod] = useState<Period>('morning')
   const [night, setNight] = useState(false)
+  const [landmarkView, setLandmarkView] = useState('centre')
   const [revision, setRevision] = useState(0)
   const [compare, setCompare] = useState(false)
   const [panel, setPanel] = useState<string | null>('transport')
@@ -122,10 +124,15 @@ export default function GameView({
   useEffect(() => {
     let renderer: CityRenderer | null = null
     try {
-      renderer = new CityRenderer(containerRef.current!, config, (id, road) => {
-        callbacks.current.onDistrict(id)
-        setSelectedRoad(road || null)
-      })
+      renderer = new CityRenderer(
+        containerRef.current!,
+        config,
+        (id, road) => {
+          callbacks.current.onDistrict(id)
+          setSelectedRoad(road || null)
+        },
+        setLandmarkView,
+      )
       rendererRef.current = renderer
     } catch {
       // The simulation and controls work even on devices without WebGL2.
@@ -201,6 +208,7 @@ export default function GameView({
           engine={compare ? engines.baseline : engines.current}
           snapshot={display}
           onSelect={onDistrict}
+          landmarkView={landmarkView}
         />
       )}
 
@@ -211,7 +219,7 @@ export default function GameView({
             <h1>
               Астана <span>/ CITY LAB</span>
             </h1>
-            <p>Учебная 3D-модель · условная дорожная сеть</p>
+            <p>Центр Астаны · география OpenStreetMap</p>
           </div>
         </div>
         <div className="game-resources">
@@ -245,6 +253,40 @@ export default function GameView({
         </div>
       </div>
 
+      <label className="landmark-picker">
+        <MapPin size={16} />
+        <span>
+          <small>ОРИЕНТИРЫ АСТАНЫ</small>
+          <select
+            aria-label="Ориентир Астаны"
+            value={landmarkView}
+            onChange={(event) => {
+              const id = event.target.value
+              setLandmarkView(id)
+              if (id === 'centre') rendererRef.current?.centreCamera()
+              else if (id === 'overview') rendererRef.current?.resetCamera()
+              else rendererRef.current?.focusLandmark(id)
+            }}
+          >
+            <option value="centre">Центр · Нуржол</option>
+            <option value="overview">Весь город</option>
+            {landmarks.map((site) => (
+              <option key={site.id} value={site.id}>
+                {site.name}
+              </option>
+            ))}
+          </select>
+        </span>
+        <ChevronDown size={13} />
+      </label>
+      <a
+        className="osm-credit"
+        href="https://www.openstreetmap.org/copyright"
+        target="_blank"
+        rel="noreferrer"
+      >
+        © OpenStreetMap contributors · ODbL
+      </a>
       <div className="game-left-rail">
         <div className="layer-switch" aria-label="Слои симуляции">
           {layers.map((item) => {
@@ -350,7 +392,13 @@ export default function GameView({
         <button aria-label="Отдалить город" onClick={() => rendererRef.current?.zoom(false)}>
           <Minus size={18} />
         </button>
-        <button aria-label="Показать весь город" onClick={() => rendererRef.current?.resetCamera()}>
+        <button
+          aria-label="Показать весь город"
+          onClick={() => {
+            setLandmarkView('overview')
+            rendererRef.current?.resetCamera()
+          }}
+        >
           <Focus size={18} />
         </button>
         <button aria-label="Переключить освещение" onClick={() => setNight(!night)}>
@@ -645,26 +693,45 @@ function FallbackMap({
   engine,
   snapshot,
   onSelect,
+  landmarkView,
 }: {
   engine: TrafficEngine
   snapshot: TrafficSnapshot
   onSelect: (id: string) => void
+  landmarkView: string
 }) {
+  const site = landmarks.find((item) => item.id === landmarkView)
+  const readings = new Map(snapshot.roads.map((road) => [road.id, road]))
+  const viewBox = site
+    ? `${site.x - 140} ${site.z - 140} 280 280`
+    : `${cityBounds.minX - 20} ${cityBounds.minZ - 20} ${cityBounds.maxX - cityBounds.minX + 40} ${cityBounds.maxZ - cityBounds.minZ + 40}`
   return (
     <div className="traffic-fallback">
       <span>Режим совместимости 2D · WebGL недоступен</span>
-      <svg viewBox="-450 -340 900 680" aria-label="Схема транспортных потоков">
-        <rect x="-450" y="-340" width="900" height="680" fill="#a9b996" />
-        <path d="M-450 0 Q-150 -30 0 0 T450 0" fill="none" stroke="#7cb7ba" strokeWidth="45" />
+      <svg viewBox={viewBox} aria-label="Схема транспортных потоков">
+        <rect
+          x={cityBounds.minX - 20}
+          y={cityBounds.minZ - 20}
+          width={cityBounds.maxX - cityBounds.minX + 40}
+          height={cityBounds.maxZ - cityBounds.minZ + 40}
+          fill="#bdc5b1"
+        />
+        {geography.rivers.map((river) => (
+          <polyline
+            key={river.id}
+            points={river.points.map((p) => p.join(',')).join(' ')}
+            fill="none"
+            stroke="#76b4bb"
+            strokeWidth={river.width}
+          />
+        ))}
         {roads.map((r) => {
-          const reading = snapshot.roads.find((item) => item.id === r.id)!
+          const reading = readings.get(r.id)!
           return (
-            <line
+            <polyline
               key={r.id}
-              x1={r.a.x}
-              y1={r.a.z}
-              x2={r.b.x}
-              y2={r.b.z}
+              points={r.points.map((p) => p.join(',')).join(' ')}
+              fill="none"
               stroke={reading.congestion > 0.5 ? '#e49d64' : '#55646a'}
               strokeWidth={8}
             />
@@ -683,6 +750,14 @@ function FallbackMap({
             />
           )
         })}
+        {landmarks.map((site) => (
+          <g key={site.id}>
+            <circle cx={site.x} cy={site.z} r={5} fill="#c79f51" />
+            <text x={site.x} y={site.z - 12} textAnchor="middle" fill="#264c43" fontSize={9}>
+              {site.name}
+            </text>
+          </g>
+        ))}
         {districtAreas.map((d) => (
           <g key={d.id} onClick={() => onSelect(d.id)}>
             <text x={d.x} y={d.z - 20} textAnchor="middle" fill="#233f49" fontSize="15">

@@ -1,0 +1,48 @@
+{
+  "source": "OpenStreetMap contributors via Nominatim",
+  "license": "ODbL-1.0",
+  "locations": [
+    {
+      "id": "bayterek",
+      "lat": 51.1282863,
+      "lon": 71.4304556,
+      "osm_type": "way",
+      "osm_id": 230401645
+    },
+    {
+      "id": "akorda",
+      "lat": 51.1257966,
+      "lon": 71.4463507,
+      "osm_type": "way",
+      "osm_id": 166198046
+    },
+    {
+      "id": "opera",
+      "lat": 51.1354596,
+      "lon": 71.4106592,
+      "osm_type": "way",
+      "osm_id": 917478479
+    },
+    {
+      "id": "mosque",
+      "lat": 51.1254495,
+      "lon": 71.4721422,
+      "osm_type": "way",
+      "osm_id": 240860325
+    },
+    {
+      "id": "khan-shatyr",
+      "lat": 51.1325048,
+      "lon": 71.4038607,
+      "osm_type": "way",
+      "osm_id": 460703779
+    },
+    {
+      "id": "palace",
+      "lat": 51.123123,
+      "lon": 71.4634559,
+      "osm_type": "way",
+      "osm_id": 166197368
+    }
+  ]
+}
